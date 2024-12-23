@@ -8,7 +8,7 @@
 #include <coredecls.h>
 
 #include "ESP8266Logger.h"
-#include "I2CSlave.h"
+#include "i2c_master.h"
 
 // SSID and password of Wifi connection:
 const char* ssid = "dlink-30C0";
@@ -16,9 +16,6 @@ const char* password = "ypics98298";
 
 //Webserver listening on port 80
 ESP8266WebServer server(80);
-
-//I2C device configured as slave
-I2CSlave i2c; 
 
 // simple function to decipher the encryption type of a network
 String translateEncryptionType(uint8_t encryptionType) {
@@ -138,8 +135,9 @@ void initLogging() {
 }
 
 void initI2C() {
-    i2c.begin();
-    esp8266_logging::ESP8266Logger::logI2C("I2C Slave initialized on SDA=" + String(2) + " SCL=" + String(4));
+  esp8266_logging::ESP8266Logger::logI2C("device started as i2c master");
+  Serial.println("\nStarting I2C Master");
+  I2CMaster::begin();
 }
 
 void initWiFi() {
@@ -156,31 +154,56 @@ void initWebServer() {
     esp8266_logging::ESP8266Logger::logSystem("Web server started at http://" + WiFi.localIP().toString());
 }
 
+void testAllCommands() {
+    Serial.println("\n=== Testing All Commands ===");
+    
+    String result;
+    
+    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "GET_TEMP");
+    Serial.print("Temperature reading: ");
+    Serial.println(result);
+    delay(1000);
+    
+    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "SET_LED,1");
+    Serial.print("LED ON result: ");
+    Serial.println(result);
+    delay(1000);
+    
+    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "READ_ADC,0");
+    Serial.print("ADC reading: ");
+    Serial.println(result);
+    delay(1000);
+    
+    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "SET_PWM,128");
+    Serial.print("PWM set result: ");
+    Serial.println(result);
+    delay(1000);
+    
+    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "GET_STATUS");
+    Serial.print("Status: ");
+    Serial.println(result);
+    
+    Serial.println("=== Test Complete ===\n");
+}
+
+
 void setup() {
     Serial.begin(115200);
     setupTime();
     initLogging();
-    //i2c.testPins();
     initI2C();
     initWiFi();
     initWebServer();
 }
 
 void loop() {
-    static unsigned long lastStatusPrint = 0;
-    const unsigned long STATUS_INTERVAL = 5000;
-    
-    handleWebServer();
-    
-    if (i2c.hasNewData()) {
-        byte receivedData = i2c.getLastReceivedData();
-        esp8266_logging::ESP8266Logger::logI2C("Received: 0x" + String(receivedData, HEX) + " Wire status: 0x" + String(Wire.status(), HEX));
-    }
-    
-    // Add periodic I2C status check
-    if (millis() - lastStatusPrint >= STATUS_INTERVAL) {
-        lastStatusPrint = millis();
-        esp8266_logging::ESP8266Logger::logI2C("Bus status - Available: " + String(Wire.available()) + " Status: 0x" + String(Wire.status(), HEX));
-        esp8266_logging::ESP8266Logger::logSystem("Status - RSSI: " + String(WiFi.RSSI()) + "dBm, I2C Status: " + String(Wire.status()));
-    }
+  I2CMaster::scanBus();
+  //I2CMaster::checkPinStates();
+
+  String result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "MASTER device: send ACK!");
+  Serial.println(result);
+  testAllCommands();
+  delay(10000);
+
+  handleWebServer();
 }
