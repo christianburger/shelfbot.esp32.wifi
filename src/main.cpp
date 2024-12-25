@@ -9,6 +9,7 @@
 
 #include "ESP8266Logger.h"
 #include "i2c_master.h"
+#include "shelfbot_comms.h"
 
 // SSID and password of Wifi connection:
 const char* ssid = "dlink-30C0";
@@ -16,6 +17,8 @@ const char* password = "ypics98298";
 
 //Webserver listening on port 80
 ESP8266WebServer server(80);
+
+ShelfbotComms comms;
 
 // simple function to decipher the encryption type of a network
 String translateEncryptionType(uint8_t encryptionType) {
@@ -156,36 +159,53 @@ void initWebServer() {
 
 void testAllCommands() {
     Serial.println("\n=== Testing All Commands ===");
-    
-    String result;
-    
-    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "GET_TEMP");
-    Serial.print("Temperature reading: ");
-    Serial.println(result);
-    delay(1000);
-    
-    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "SET_LED,1");
-    Serial.print("LED ON result: ");
-    Serial.println(result);
-    delay(1000);
-    
-    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "READ_ADC,0");
-    Serial.print("ADC reading: ");
-    Serial.println(result);
-    delay(1000);
-    
-    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "SET_PWM,128");
-    Serial.print("PWM set result: ");
-    Serial.println(result);
-    delay(1000);
-    
-    result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "GET_STATUS");
-    Serial.print("Status: ");
-    Serial.println(result);
-    
+
+    // Basic system commands
+    ShelfbotComms::sendCommand(CMD_GET_TEMP);
+    ShelfbotComms::sendCommand(CMD_SET_LED, 1);
+    ShelfbotComms::sendCommand(CMD_READ_ADC, 0);
+    ShelfbotComms::sendCommand(CMD_SET_PWM, 128);
+    ShelfbotComms::sendCommand(CMD_GET_STATUS);
+
+    // Set all motors
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_1, 1000);
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_2, 1000);
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_3, 1000);
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_4, 1000);
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_5, 1000);
+    ShelfbotComms::sendCommand(CMD_SET_MOTOR_6, 1000);
+
+    // Get all motor positions
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_1_POS);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_2_POS);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_3_POS);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_4_POS);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_5_POS);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_6_POS);
+
+    // Get all motor velocities
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_1_VEL);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_2_VEL);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_3_VEL);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_4_VEL);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_5_VEL);
+    ShelfbotComms::sendCommand(CMD_GET_MOTOR_6_VEL);
+
+    // Stop individual motors
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_1);
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_2);
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_3);
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_4);
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_5);
+    ShelfbotComms::sendCommand(CMD_STOP_MOTOR_6);
+
+    // System commands
+    ShelfbotComms::sendCommand(CMD_STOP_ALL);
+    ShelfbotComms::sendCommand(CMD_GET_BATTERY);
+    ShelfbotComms::sendCommand(CMD_GET_SYSTEM);
+
     Serial.println("=== Test Complete ===\n");
 }
-
 
 void setup() {
     Serial.begin(115200);

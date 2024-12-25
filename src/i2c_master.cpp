@@ -1,3 +1,4 @@
+#ifndef I2C_SLAVE_DEVICE
 #include "i2c_master.h"
 
 void I2CMaster::begin() {
@@ -73,17 +74,19 @@ String I2CMaster::communicateWithSlave(uint8_t slaveAddr, const char* message) {
     Serial.print("... connection attempt result: ");
     printI2CStatus(result);
     if (result == 0) {
-        Serial.printf("\nRequesting 16 bytes from device #%02X", slaveAddr);
-        uint8_t bytesReceived = Wire.requestFrom(slaveAddr, 16);
-        String response = "\n\nReceived byte: >>>>> ";
+        Serial.printf("\nRequesting %d bytes from device #%02X", I2C_BUFFER_LIMIT, slaveAddr);
+        uint8_t bytesReceived = Wire.requestFrom(slaveAddr, I2C_BUFFER_LIMIT);        String response = "\n\nReceived byte: >>>>> ";
         while (Wire.available()) {
             char c = Wire.read();
             response += c;
             response += " ";
         }
         response += String("\nReceived ") + bytesReceived + " bytes\n";
+        response += String("\nRESPONSE") + response + " \n\n";
         Wire.endTransmission();
         return response;
     }
     return String("Communication failed with error code: ") + result;
 }
+
+#endif

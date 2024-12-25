@@ -1,3 +1,4 @@
+#ifndef I2C_SLAVE_DEVICE
 #ifndef I2C_MASTER_H
 #define I2C_MASTER_H
 
@@ -16,10 +17,11 @@ public:
     static void scanBus();
     static void checkPinStates();
     static String communicateWithSlave(uint8_t slaveAddr, const char* message);
-    static void testAllCommands();
+
 
 private:
     static void printI2CStatus(uint8_t status);
 };
 
+#endif
 #endif
