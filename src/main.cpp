@@ -214,16 +214,14 @@ void setup() {
     initI2C();
     initWiFi();
     initWebServer();
+    I2CMaster::scanBus();
 }
 
 void loop() {
-  I2CMaster::scanBus();
-  //I2CMaster::checkPinStates();
-
   String result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "MASTER device: send ACK!");
   Serial.println(result);
   testAllCommands();
-  delay(10000);
+  delay(10);
 
   handleWebServer();
 }
