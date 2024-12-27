@@ -1,9 +1,9 @@
 #ifndef SHELFBOT_COMMS_H
 #define SHELFBOT_COMMS_H
-
 #include <Arduino.h>
 
 #ifdef I2C_SLAVE_DEVICE
+#include <AccelStepper.h>
 #include "i2c_slave.h"
 #else
 #include "i2c_master.h"

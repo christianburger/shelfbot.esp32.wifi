@@ -1,7 +1,8 @@
 #include "shelfbot_comms.h"
-#include <AccelStepper.h>
 
+#ifdef I2C_SLAVE_DEVICE
 extern AccelStepper steppers[];
+#endif
 
 void ShelfbotComms::begin() {
     Serial.begin(115200);
