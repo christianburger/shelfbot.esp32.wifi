@@ -18,6 +18,31 @@
 #define CMD_CHECKSUM_START 0x2323 // "##"
 #define CMD_CHECKSUM_END 0x2424   // "$$"
 
+enum CommandResponse : uint16_t {
+    // Success responses
+    RESP_OK = 0x4F4B,       // "OK"
+    RESP_READY = 0x5244,    // "RD"
+    RESP_COMPLETE = 0x434D,  // "CM"
+    
+    // Status responses  
+    RESP_BUSY = 0x4255,     // "BU"
+    RESP_MOVING = 0x4D56,   // "MV"
+    RESP_STOPPED = 0x5354,  // "ST"
+    
+    // Error responses
+    RESP_ERROR = 0x4552,    // "ER"
+    RESP_INVALID = 0x494E,  // "IN"
+    RESP_TIMEOUT = 0x544F,  // "TO"
+    RESP_ERR_RANGE = 0x4552, // "RG" 
+    RESP_ERR_VALUE = 0x4556, // "EV"
+    RESP_ERR_PIN = 0x4550,   // "EP"
+    RESP_ERR_MOTOR = 0x454D, // "EM"
+    RESP_ERR_PARAM = 0x4548, // "EH"
+    RESP_ERR_STATE = 0x4553, // "ES"
+    RESP_ERR_COMM = 0x4543,  // "EC"
+    RESP_ERR_CRC = 0x4352    // "CR"
+};
+
 // Define commands as 16-bit values
 enum CommandType : uint16_t {
     CMD_UNKNOWN = 0x3F3F,     // "??"
@@ -60,11 +85,31 @@ public:
     static void begin();
     static void handleComms();
     static void handleCommand(char* message);
+
     static void sendCommand(CommandType cmd, uint16_t value = 0);
+
+    static String formatResponse(CommandResponse resp, const String& value);
     static String formatCommand(CommandType cmd, const String& value);
+
     static String parseValue(const String& message);
     static CommandType parseCommand(const String& message);
-    static bool verifyChecksum(const String& message);  // Added this line
+
+    static bool verifyChecksum(const String& message);
+    static void moveAllMotors(long position);
+
+private:
+    static String getTemperature();
+    static String setLed(const String& value);
+    static String readAdc(const String& value);
+    static String setPwm(const String& value);
+    static String getStatus();
+    static String setMotor(uint8_t index, const String& value);
+    static String getMotorPosition(uint8_t index);
+    static String getMotorVelocity(uint8_t index);
+    static String stopMotor(uint8_t index);
+    static String stopAllMotors();
+    static String getBatteryLevel();
+    static String getSystemStatus();
 };
 
 #endif

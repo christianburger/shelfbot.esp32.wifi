@@ -13,14 +13,40 @@ void ShelfbotComms::begin() {
     I2CMaster::begin();
     #endif
 }
+String ShelfbotComms::formatResponse(CommandResponse resp, const String& value) {
+    String response;
+    response.reserve(32);
+    response += (char)(resp >> 8);      // High byte of response code
+    response += (char)(resp & 0xFF);     // Low byte of response code
+    response += value;                   // Append any additional data
+    return response;
+}
 
 void ShelfbotComms::sendCommand(CommandType cmd, uint16_t value) {
     String formattedCmd = formatCommand(cmd, String(value));
     
     #ifndef I2C_SLAVE_DEVICE
-    Serial.printf("\n\nSENT COMMAND: 0x%04X value: %d\n", cmd, value);
+    Serial.printf("\n=== COMMAND SENT ===\n");
+    Serial.printf("Type: 0x%04X\n", cmd);
+    Serial.printf("Value: %d\n", value);
+    Serial.printf("Raw: %s\n", formattedCmd.c_str());
+    
     String response = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, formattedCmd.c_str());
-    Serial.printf("\nRECEIVED RESPONSE: %s\n", response.c_str());
+    
+    if (response.length() >= 2) {
+        uint16_t respCode = (response[0] << 8) | response[1];
+        CommandResponse responseType = static_cast<CommandResponse>(respCode);
+        String responseValue = response.substring(2);
+        
+        Serial.printf("\n=== RESPONSE RECEIVED ===\n");
+        Serial.printf("Status: %s\n", formatResponse(responseType, responseValue).c_str());
+        Serial.printf("Response Code: 0x%04X\n", respCode);
+        Serial.printf("Value: %s\n", responseValue.c_str());
+        Serial.printf("Raw: %s\n", response.c_str());
+        Serial.println("=====================\n");
+    } else {
+        Serial.println("ERROR: Invalid response format");
+    }
     #endif
 }
 
@@ -86,11 +112,122 @@ bool ShelfbotComms::verifyChecksum(const String& message) {
     return calculatedChecksum == strtol(receivedChecksum.c_str(), NULL, 16);
 }
 
+#ifdef I2C_SLAVE_DEVICE
+
+String ShelfbotComms::getTemperature() {
+    Serial.println("Reading temperature sensor");
+    return String(analogRead(A0) * 0.48876f);
+}
+
+String ShelfbotComms::setLed(const String& value) {
+    int state = value.toInt();
+    if(state != 0 && state != 1) return "ERR_VALUE";
+    digitalWrite(LED_BUILTIN, state);
+    return String(digitalRead(LED_BUILTIN));
+}
+
+String ShelfbotComms::readAdc(const String& value) {
+    int pin = value.toInt();
+    if(pin < 0 || pin > A7) return "ERR_PIN";
+    return String(analogRead(pin));
+}
+
+String ShelfbotComms::setPwm(const String& value) {
+    int pin = value.toInt();
+    int pwmValue = value.toInt();
+    if(pin < 0 || pin > 13) return "ERR_PIN";
+    if(pwmValue < 0 || pwmValue > 255) return "ERR_VALUE";
+    analogWrite(pin, pwmValue);
+    return String(analogRead(pin));
+}
+
+String ShelfbotComms::getStatus() {
+    return String(millis());
+}
+
+#define NUM_MOTORS 6
+void ShelfbotComms::moveAllMotors(long position) {
+    Serial.print("\nShelfbotComms::moveAllMotors(");
+    Serial.print(position, DEC);
+    Serial.print(") <<<<<");
+
+    // Set target position
+    for (int i = 0; i < NUM_MOTORS; i++) {
+        steppers[i].moveTo(position);
+        steppers[i].setSpeed(steppers[i].maxSpeed());
+    }
+    
+    // Run motors
+    while (true) {
+        bool allDone = true;
+        for (int i = 0; i < NUM_MOTORS; i++) {
+            if (steppers[i].distanceToGo() != 0) {
+                steppers[i].runSpeedToPosition();
+                allDone = false;
+            }
+        }
+        if (allDone) break;
+    }
+}
+
+String ShelfbotComms::setMotor(uint8_t index, const String& value) {
+    Serial.print("\nShelfbotComms::setMotor - Setting motor ");
+    Serial.print(index, DEC);
+    Serial.print(" to position: ");
+    long position = value.toInt();
+    Serial.println(position, DEC);
+
+    if(index >= 6) {
+        return formatResponse(RESP_ERR_MOTOR, String(index));
+    }
+
+    steppers[index].moveTo(position);
+    steppers[index].setSpeed(steppers[index].maxSpeed());
+
+    String status = String(steppers[index].currentPosition()) + "," +
+           String(steppers[index].targetPosition()) + "," +
+           String(steppers[index].distanceToGo()) + "," +
+           String(steppers[index].speed());
+    
+    return formatResponse(RESP_MOVING, status);
+}
+
+String ShelfbotComms::getMotorPosition(uint8_t index) {
+    if(index >= 6) return "ERR_MOTOR";
+    return String(steppers[index].currentPosition());
+}
+
+String ShelfbotComms::getMotorVelocity(uint8_t index) {
+    if(index >= 6) return "ERR_MOTOR";
+    return String(steppers[index].speed());
+}
+
+String ShelfbotComms::stopMotor(uint8_t index) {
+    if(index >= 6) return "ERR_MOTOR";
+    steppers[index].stop();
+    return String(steppers[index].currentPosition());
+}
+
+String ShelfbotComms::stopAllMotors() {
+    for(int i = 0; i < 6; i++) {
+        steppers[i].stop();
+    }
+    return "STOPPED";
+}
+
+String ShelfbotComms::getBatteryLevel() {
+    return String(analogRead(A0));
+}
+
+String ShelfbotComms::getSystemStatus() {
+    return String(millis());
+}
+
 void ShelfbotComms::handleCommand(char* message) {
     String msg(message);
     if (!verifyChecksum(msg)) {
         #ifdef I2C_SLAVE_DEVICE
-        I2CSlave::setResponse(formatCommand(CMD_UNKNOWN, "CHECKSUM_ERR").c_str());
+        I2CSlave::setResponse("ERR_CHECKSUM");
         #endif
         return;
     }
@@ -101,159 +238,108 @@ void ShelfbotComms::handleCommand(char* message) {
 
     switch(cmd) {
         case CMD_GET_TEMP:
-            response = formatCommand(CMD_GET_TEMP, String(analogRead(A0) * 0.48876f));
+            response = getTemperature();
             break;
-            
         case CMD_SET_LED:
-            digitalWrite(LED_BUILTIN, value.toInt());
-            response = formatCommand(CMD_SET_LED, "OK");
+            response = setLed(value);
             break;
-            
         case CMD_READ_ADC:
-            response = formatCommand(CMD_READ_ADC, String(analogRead(value.toInt())));
+            response = readAdc(value);
             break;
-            
         case CMD_SET_PWM:
-            analogWrite(value.toInt(), value.toInt());
-            response = formatCommand(CMD_SET_PWM, "OK");
+            response = setPwm(value);
             break;
-            
         case CMD_GET_STATUS:
-            response = formatCommand(CMD_GET_STATUS, String(millis()));
+            response = getStatus();
             break;
-            
         case CMD_SET_MOTOR_1:
-            steppers[0].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_1, String(steppers[0].currentPosition()));
+            response = setMotor(0, value);
             break;
-            
         case CMD_SET_MOTOR_2:
-            steppers[1].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_2, String(steppers[1].currentPosition()));
+            response = setMotor(1, value);
             break;
-            
         case CMD_SET_MOTOR_3:
-            steppers[2].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_3, String(steppers[2].currentPosition()));
+            response = setMotor(2, value);
             break;
-            
         case CMD_SET_MOTOR_4:
-            steppers[3].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_4, String(steppers[3].currentPosition()));
+            response = setMotor(3, value);
             break;
-            
         case CMD_SET_MOTOR_5:
-            steppers[4].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_5, String(steppers[4].currentPosition()));
+            response = setMotor(4, value);
             break;
-            
         case CMD_SET_MOTOR_6:
-            steppers[5].moveTo(value.toInt());
-            response = formatCommand(CMD_SET_MOTOR_6, String(steppers[5].currentPosition()));
+            response = setMotor(5, value);
             break;
-            
         case CMD_GET_MOTOR_1_POS:
-            response = formatCommand(CMD_GET_MOTOR_1_POS, String(steppers[0].currentPosition()));
+            response = getMotorPosition(0);
             break;
-            
         case CMD_GET_MOTOR_2_POS:
-            response = formatCommand(CMD_GET_MOTOR_2_POS, String(steppers[1].currentPosition()));
+            response = getMotorPosition(1);
             break;
-            
         case CMD_GET_MOTOR_3_POS:
-            response = formatCommand(CMD_GET_MOTOR_3_POS, String(steppers[2].currentPosition()));
+            response = getMotorPosition(2);
             break;
-            
         case CMD_GET_MOTOR_4_POS:
-            response = formatCommand(CMD_GET_MOTOR_4_POS, String(steppers[3].currentPosition()));
+            response = getMotorPosition(3);
             break;
-            
         case CMD_GET_MOTOR_5_POS:
-            response = formatCommand(CMD_GET_MOTOR_5_POS, String(steppers[4].currentPosition()));
+            response = getMotorPosition(4);
             break;
-            
         case CMD_GET_MOTOR_6_POS:
-            response = formatCommand(CMD_GET_MOTOR_6_POS, String(steppers[5].currentPosition()));
+            response = getMotorPosition(5);
             break;
-            
         case CMD_GET_MOTOR_1_VEL:
-            response = formatCommand(CMD_GET_MOTOR_1_VEL, String(steppers[0].speed()));
+            response = getMotorVelocity(0);
             break;
-            
         case CMD_GET_MOTOR_2_VEL:
-            response = formatCommand(CMD_GET_MOTOR_2_VEL, String(steppers[1].speed()));
+            response = getMotorVelocity(1);
             break;
-            
         case CMD_GET_MOTOR_3_VEL:
-            response = formatCommand(CMD_GET_MOTOR_3_VEL, String(steppers[2].speed()));
+            response = getMotorVelocity(2);
             break;
-            
         case CMD_GET_MOTOR_4_VEL:
-            response = formatCommand(CMD_GET_MOTOR_4_VEL, String(steppers[3].speed()));
+            response = getMotorVelocity(3);
             break;
-            
         case CMD_GET_MOTOR_5_VEL:
-            response = formatCommand(CMD_GET_MOTOR_5_VEL, String(steppers[4].speed()));
+            response = getMotorVelocity(4);
             break;
-            
         case CMD_GET_MOTOR_6_VEL:
-            response = formatCommand(CMD_GET_MOTOR_6_VEL, String(steppers[5].speed()));
+            response = getMotorVelocity(5);
             break;
-            
         case CMD_STOP_MOTOR_1:
-            steppers[0].stop();
-            response = formatCommand(CMD_STOP_MOTOR_1, "OK");
+            response = stopMotor(0);
             break;
-            
         case CMD_STOP_MOTOR_2:
-            steppers[1].stop();
-            response = formatCommand(CMD_STOP_MOTOR_2, "OK");
+            response = stopMotor(1);
             break;
-            
         case CMD_STOP_MOTOR_3:
-            steppers[2].stop();
-            response = formatCommand(CMD_STOP_MOTOR_3, "OK");
+            response = stopMotor(2);
             break;
-            
         case CMD_STOP_MOTOR_4:
-            steppers[3].stop();
-            response = formatCommand(CMD_STOP_MOTOR_4, "OK");
+            response = stopMotor(3);
             break;
-            
         case CMD_STOP_MOTOR_5:
-            steppers[4].stop();
-            response = formatCommand(CMD_STOP_MOTOR_5, "OK");
+            response = stopMotor(4);
             break;
-            
         case CMD_STOP_MOTOR_6:
-            steppers[5].stop();
-            response = formatCommand(CMD_STOP_MOTOR_6, "OK");
+            response = stopMotor(5);
             break;
-            
         case CMD_STOP_ALL:
-            for(int i = 0; i < 6; i++) {
-                steppers[i].stop();
-            }
-            response = formatCommand(CMD_STOP_ALL, "OK");
+            response = stopAllMotors();
             break;
-            
         case CMD_GET_BATTERY:
-            response = formatCommand(CMD_GET_BATTERY, String(analogRead(A0)));
+            response = getBatteryLevel();
             break;
-            
         case CMD_GET_SYSTEM:
-            response = formatCommand(CMD_GET_SYSTEM, String(millis()));
+            response = getSystemStatus();
             break;
-            
         default:
-            response = formatCommand(CMD_UNKNOWN, "ERR");
+            response = "ERR_CMD";
             break;
     }
-    
-    #ifdef I2C_SLAVE_DEVICE
     I2CSlave::setResponse(response.c_str());
-    #endif
 }
+#endif
 
 void ShelfbotComms::handleComms() {
     #ifdef I2C_SLAVE_DEVICE

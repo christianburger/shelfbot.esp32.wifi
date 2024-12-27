@@ -2,28 +2,28 @@
 #include "i2c_master.h"
 
 void I2CMaster::begin() {
-    Serial.printf("Initializing I2C: SDA=%d, SCL=%d\n", SDA_PIN, SCL_PIN);
+    Serial.printf("I2CMaster::Initializing I2C: SDA=%d, SCL=%d\n", SDA_PIN, SCL_PIN);
     Wire.begin(SDA_PIN, SCL_PIN);
     Wire.setClock(I2C_FREQ);
 }
 
 void I2CMaster::printI2CStatus(uint8_t status) {
     switch(status) {
-        case 0: Serial.print(": Success\n"); break;
-        case 1: Serial.print(": Data too long"); break;
-        case 2: Serial.print(": NACK on address"); break;
-        case 3: Serial.print(": NACK on data"); break;
-        case 4: Serial.print(": Other error"); break;
-        default: Serial.print(": Unknown error"); break;
+        case 0: Serial.print(":I2CMaster:: Success\n"); break;
+        case 1: Serial.print(":I2CMaster:: Data too long"); break;
+        case 2: Serial.print(":I2CMaster:: NACK on address"); break;
+        case 3: Serial.print(":I2CMaster:: NACK on data"); break;
+        case 4: Serial.print(":I2CMaster:: Other error"); break;
+        default: Serial.print(":I2CMaster:: Unknown error"); break;
     }
 }
 
 void I2CMaster::scanBus() {
     byte error, address;
     int devicesFound = 0;
-    Serial.println("\n=== I2C Bus Scan ===");
-    Serial.printf("Clock frequency: %d Hz\n", I2C_FREQ);
-    Serial.println("\n\nTesting addresses ..");
+    Serial.println("\n=== I2CMaster::I2C Bus Scan ===");
+    Serial.printf("I2CMaster::Clock frequency: %d Hz\n", I2C_FREQ);
+    Serial.println("\n\nI2CMaster::Testing addresses ..");
 
     for(address = 1; address < 127; address++) {
         Wire.beginTransmission(address);
@@ -34,16 +34,16 @@ void I2CMaster::scanBus() {
         printI2CStatus(error);
         if (error == 0) {
             devicesFound++;
-            Serial.printf("\nAttempting to read from device 0x%02X: ", address);
+            Serial.printf("\nI2CMaster::Attempting to read from device 0x%02X: ", address);
             uint8_t bytesReceived = Wire.requestFrom(address, (uint8_t)1);
             if (bytesReceived) {
-                Serial.printf("\nReceived %d bytes\n", bytesReceived);
+                Serial.printf("\nI2CMaster::Received %d bytes\n", bytesReceived);
                 while(Wire.available()) {
                     byte data = Wire.read();
                     Serial.printf(" Data: 0x%02X\n", data);
                 }
             } else {
-                Serial.println("No data received");
+                Serial.println("I2CMaster::No data received");
             }
         }
         delay(10);
@@ -53,40 +53,40 @@ void I2CMaster::scanBus() {
 }
 
 void I2CMaster::checkPinStates() {
-    Serial.println("Checking I2C bus state:");
-    Serial.printf("SDA line state: %d\n", digitalRead(SDA_PIN));
-    Serial.printf("SCL line state: %d\n", digitalRead(SCL_PIN));
+    Serial.println("I2CMaster::Checking I2C bus state:");
+    Serial.printf("I2CMaster::SDA line state: %d\n", digitalRead(SDA_PIN));
+    Serial.printf("I2CMaster::SCL line state: %d\n", digitalRead(SCL_PIN));
 }
 
 String I2CMaster::communicateWithSlave(uint8_t slaveAddr, const char* message) {
     size_t messageLength = strlen(message);
     if (messageLength > I2C_BUFFER_LIMIT) {
-        return String("Error: Message length ") + messageLength + 
+        return String("I2CMaster::Error: Message length ") + messageLength + 
                " exceeds I2C buffer limit of " + I2C_BUFFER_LIMIT + " bytes";
     }
 
-    Serial.printf("\nAttempting communication with device #%02X", slaveAddr);
+    Serial.printf("\nI2CMaster::Attempting communication with device #%02X", slaveAddr);
     Wire.beginTransmission(slaveAddr);
-    Serial.printf("\nSending data to slave device: #%02X", slaveAddr);
+    Serial.printf("\nI2CMaster::Sending data to slave device: #%02X", slaveAddr);
     Wire.write(message, messageLength);
     uint8_t result = Wire.endTransmission(slaveAddr);
 
     Serial.print("... connection attempt result: ");
     printI2CStatus(result);
     if (result == 0) {
-        Serial.printf("\nRequesting %d bytes from device #%02X", I2C_BUFFER_LIMIT, slaveAddr);
+        Serial.printf("\nI2CMaster::Requesting %d bytes from device #%02X", I2C_BUFFER_LIMIT, slaveAddr);
         uint8_t bytesReceived = Wire.requestFrom(slaveAddr, I2C_BUFFER_LIMIT);        String response = "\n\nReceived byte: >>>>> ";
         while (Wire.available()) {
             char c = Wire.read();
             response += c;
             response += " ";
         }
-        response += String("\nReceived ") + bytesReceived + " bytes\n";
-        response += String("\nRESPONSE") + response + " \n\n";
+        response += String("\nI2CMaster::Received ") + bytesReceived + " bytes";
+        response += String("\nI2CMaster::RESPONSE") + response + "...";
         Wire.endTransmission();
         return response;
     }
-    return String("Communication failed with error code: ") + result;
+    return String("I2CMaster::Communication failed with error code: ") + result;
 }
 
 #endif

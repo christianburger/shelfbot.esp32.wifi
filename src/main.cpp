@@ -204,24 +204,46 @@ void testAllCommands() {
     ShelfbotComms::sendCommand(CMD_GET_BATTERY);
     ShelfbotComms::sendCommand(CMD_GET_SYSTEM);
 
+    // Unformatted command sent as string, should return an error
+    String result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "MASTER device: send ACK!");
+    Serial.println(result);
+
     Serial.println("=== Test Complete ===\n");
 }
 
 void setup() {
     Serial.begin(115200);
+    delay(1000);
     setupTime();
     initLogging();
     initI2C();
     initWiFi();
     initWebServer();
     I2CMaster::scanBus();
+    testAllCommands();
 }
 
 void loop() {
-  String result = I2CMaster::communicateWithSlave(I2C_SLAVE_ADDR, "MASTER device: send ACK!");
-  Serial.println(result);
-  testAllCommands();
-  delay(10);
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_1, 1000);
+  delay(4000);
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_1, 0);
+  delay(4000);
+ 
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_2, 1000);
+  delay(4000);
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_2, 0);
+  delay(4000);
+ 
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_3, 1000);
+  delay(4000);
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_3, 0);
+  delay(4000);
 
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_4, 1000);
+  delay(4000);
+  ShelfbotComms::sendCommand(CMD_SET_MOTOR_4, 0);
+  delay(4000);
+ 
+  delay(4000);
   handleWebServer();
 }
